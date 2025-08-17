@@ -245,7 +245,7 @@ Color _sc(String s, BuildContext c){
   switch (s){
     case 'positive': return Colors.green;
     case 'negative': return Colors.red;
-    default: return Theme.of(c).colorScheme.outline;
+    default: return Theme.of(c).colorScheme.primary;
   }
 }
 
@@ -268,45 +268,66 @@ class ArticleCard extends StatelessWidget{
 
   @override Widget build(BuildContext context){
     final dt = DateTime.tryParse(publishedAt)?.toLocal();
+    final scheme = Theme.of(context).colorScheme;
+    final accent = _sc(sentiment, context);
+
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal:12, vertical:6),
-      elevation:2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
-          Row(children:[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal:10, vertical:4),
-              decoration: BoxDecoration(
-                color: _sc(sentiment, context).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(999)
-              ),
-              child: Text(sentiment.toUpperCase(),
-                style: TextStyle(color:_sc(sentiment, context), fontWeight: FontWeight.w800, fontSize:11)),
-            ),
-            const SizedBox(width:10),
-            Text(source, style: Theme.of(context).textTheme.labelMedium),
-            const Spacer(),
-            Text(dt==null? '' : DateFormat('MMM d, HH:mm').format(dt),
-              style: Theme.of(context).textTheme.labelSmall),
-          ]),
-          const SizedBox(height:10),
-          Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-          const SizedBox(height:6),
-          Text(summary, maxLines:4, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height:10),
-          Wrap(spacing:6, runSpacing:-6, children: [
-            for (final t in tags.take(8)) Chip(label: Text(t)),
-          ]),
-          const SizedBox(height:8),
-          Row(children: [
-            if (onListen!=null)
-              TextButton.icon(onPressed:onListen, icon: const Icon(Icons.volume_up_rounded), label: const Text('Listen')),
-            const Spacer(),
-            if (url!=null && url!.isNotEmpty)
-              TextButton.icon(onPressed: ()=>launchUrl(Uri.parse(url!)), icon: const Icon(Icons.open_in_new), label: const Text('Source')),
-          ])
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              scheme.primary.withOpacity(0.06),
+              scheme.secondary.withOpacity(0.03),
+              Colors.transparent,
+            ],
+          ),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children:[
+          Container(width: 5, color: accent.withOpacity(0.9)),
+          Expanded(child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children:[
+              Row(children:[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal:10, vertical:4),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(sentiment.toUpperCase(),
+                    style: TextStyle(color: accent, fontWeight: FontWeight.w800, fontSize: 11)),
+                ),
+                const SizedBox(width:10),
+                Icon(Icons.newspaper_rounded, size: 14, color: scheme.outline),
+                const SizedBox(width:4),
+                Text(source, style: Theme.of(context).textTheme.labelMedium),
+                const Spacer(),
+                Icon(Icons.schedule, size: 14, color: scheme.outline),
+                const SizedBox(width:4),
+                Text(dt==null? '' : DateFormat('MMM d, HH:mm').format(dt),
+                  style: Theme.of(context).textTheme.labelSmall),
+              ]),
+              const SizedBox(height:10),
+              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900, height: 1.2)),
+              const SizedBox(height:8),
+              Text(summary, maxLines:4, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height:12),
+              Wrap(spacing:6, runSpacing:-6, children: [
+                for (final t in tags.take(8)) Chip(label: Text(t)),
+              ]),
+              const SizedBox(height:10),
+              Row(children: [
+                if (onListen!=null)
+                  FilledButton.tonalIcon(onPressed:onListen, icon: const Icon(Icons.volume_up_rounded), label: const Text('Listen')),
+                const Spacer(),
+                if (url!=null && url!.isNotEmpty)
+                  OutlinedButton.icon(onPressed: ()=>launchUrl(Uri.parse(url!)), icon: const Icon(Icons.open_in_new), label: const Text('Read')),
+              ])
+            ]),
+          )),
         ]),
       ),
     );
@@ -357,7 +378,6 @@ class _S extends State<FeedScreen>{
   Future<List<Article>> _load({bool initial=false}) async{
     setState(() { _loading=true; });
     if (initial) { await _loadPrefs(); }
-    // Fetch WITHOUT relying on backend filtering; we filter locally.
     final res=await widget.api.feed();
     final all = res.items;
     final tagSet = <String>{};
@@ -373,13 +393,12 @@ class _S extends State<FeedScreen>{
   bool _matchesFilters(Article a){
     if (_sentiment!='any' && a.sentiment != _sentiment) return false;
     if (_selectedTags.isNotEmpty){
-      // require ALL selected tags to be present in article
       for (final t in _selectedTags){
         if (!a.tags.contains(t)) return false;
       }
     }
     return true;
-    }
+  }
 
   Future<void> _openFilterSheet() async{
     String tmpSent=_sentiment; final tmpTags={..._selectedTags};
@@ -426,8 +445,7 @@ class _S extends State<FeedScreen>{
         _selectedTags..clear()..addAll(tmpTags);
       });
       await _savePrefs();
-      // No need to refetch; we filter locally. If you want to refresh tags universe from server, call _future=_load();
-      setState((){}); // trigger rebuild
+      setState((){});
     }
   }
 
@@ -435,15 +453,14 @@ class _S extends State<FeedScreen>{
     return Column(children:[
       Padding(padding:const EdgeInsets.fromLTRB(12,8,12,6), child: Row(children:[
         Expanded(child: TextField(controller:_search, onChanged:(_)=>setState((){}),
-          decoration:const InputDecoration(
-            hintText:'Search in titles, summaries, tags…',
-            prefixIcon:Icon(Icons.search),
-            border:OutlineInputBorder(borderRadius:BorderRadius.all(Radius.circular(16))),
-            contentPadding:EdgeInsets.symmetric(horizontal:12, vertical:10),
+          decoration: InputDecoration(
+            hintText:'Search news, tags…',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _search.text.isEmpty ? null : IconButton(icon: const Icon(Icons.close), onPressed: (){ _search.clear(); setState((){}); }),
           ),
         )),
         const SizedBox(width:8),
-        IconButton.outlined(onPressed:_openFilterSheet, icon:const Icon(Icons.filter_alt_rounded)),
+        IconButton.filledTonal(onPressed:_openFilterSheet, icon:const Icon(Icons.filter_alt_rounded)),
       ])),
       if (_sentiment!='any' || _selectedTags.isNotEmpty)
         Padding(padding: const EdgeInsets.symmetric(horizontal:12), child: Wrap(spacing:6, runSpacing:-6, children:[
@@ -465,7 +482,6 @@ class _S extends State<FeedScreen>{
         final err=snap.hasError? snap.error : null;
         final items=(snap.data ?? _cache);
 
-        // Apply filters + search locally
         final q=_search.text.trim().toLowerCase();
         final filtered = items.where((a){
           if (!_matchesFilters(a)) return false;
@@ -574,22 +590,25 @@ import 'package:flutter/material.dart';
 import '../services/storage.dart';
 
 class ProfileScreen extends StatefulWidget{
-  final String primary; final String? fallback;
-  const ProfileScreen({super.key, required this.primary, this.fallback});
+  final String primary; final String? fallback; final VoidCallback? onPrefsChanged;
+  const ProfileScreen({super.key, required this.primary, this.fallback, this.onPrefsChanged});
   @override State<ProfileScreen> createState()=>_S();
 }
 class _S extends State<ProfileScreen>{
-  bool highContrast=false, blind=false;
+  bool dark=false, highContrast=false, blind=false;
   @override void initState(){ super.initState(); _load(); }
   Future<void> _load() async {
+    dark = await Store.getBool('theme_dark');
     highContrast = await Store.getBool('theme_high_contrast');
     blind = await Store.getBool('a11y_blind');
     if(mounted) setState((){});
   }
   Future<void> _save() async {
+    await Store.setBool('theme_dark', dark);
     await Store.setBool('theme_high_contrast', highContrast);
     await Store.setBool('a11y_blind', blind);
     if(!mounted)return;
+    widget.onPrefsChanged?.call();
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Saved')));
   }
   @override Widget build(BuildContext c){
@@ -598,6 +617,7 @@ class _S extends State<ProfileScreen>{
       if(widget.fallback!=null && widget.fallback!.isNotEmpty)
         ListTile(title: const Text('API (fallback)'), subtitle: Text(widget.fallback!)),
       const Divider(),
+      SwitchListTile(value: dark, onChanged:(v)=>setState(() => dark=v), title: const Text('Dark theme')),
       SwitchListTile(value: highContrast, onChanged:(v)=>setState(() => highContrast=v), title: const Text('High contrast theme')),
       SwitchListTile(value: blind, onChanged:(v)=>setState(() => blind=v), title: const Text('Blind assistance (TTS default)')),
       Padding(padding: const EdgeInsets.all(16), child: FilledButton.icon(onPressed:_save, icon: const Icon(Icons.save), label: const Text('Save settings'))),
@@ -618,6 +638,65 @@ import 'screens/explore.dart';
 import 'screens/alerts.dart';
 import 'screens/profile.dart';
 import 'services/api.dart';
+import 'services/storage.dart';
+
+ThemeData _buildTheme({required bool isDark, required bool highContrast}){
+  final brightness = isDark ? Brightness.dark : Brightness.light;
+  final scheme = ColorScheme.fromSeed(seedColor: Colors.indigo, brightness: brightness);
+
+  final base = ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    textTheme: GoogleFonts.interTextTheme(ThemeData(brightness: brightness).textTheme),
+  );
+
+  final text = base.textTheme.copyWith(
+    titleLarge: GoogleFonts.merriweather(
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.2,
+      fontSize: base.textTheme.titleLarge?.fontSize,
+    ),
+    titleMedium: GoogleFonts.merriweather(
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.2,
+      fontSize: base.textTheme.titleMedium?.fontSize,
+    ),
+  );
+
+  final contrastBoost = highContrast ? 0.08 : 0.0;
+  final filledColor = scheme.surfaceVariant.withOpacity(isDark ? 0.24 + contrastBoost : 0.5 + contrastBoost);
+
+  return base.copyWith(
+    textTheme: text,
+    appBarTheme: AppBarTheme(
+      centerTitle: true,
+      elevation: 0,
+      titleTextStyle: text.titleMedium?.copyWith(color: scheme.onSurface, fontWeight: FontWeight.w800),
+    ),
+    cardTheme: CardTheme(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    ),
+    chipTheme: base.chipTheme.copyWith(
+      shape: const StadiumBorder(),
+      labelStyle: TextStyle(color: scheme.onSurface),
+      selectedColor: scheme.secondaryContainer,
+      side: BorderSide(color: scheme.outlineVariant),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: filledColor,
+      border: const OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(18))),
+      enabledBorder: const OutlineInputBorder(borderSide: BorderSide.none, borderRadius: BorderRadius.all(Radius.circular(18))),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      indicatorColor: scheme.primaryContainer,
+      labelTextStyle: MaterialStateProperty.all(const TextStyle(fontWeight: FontWeight.w700)),
+    ),
+  );
+}
 
 class AppShell extends StatefulWidget{
   final String primary; final String? fallback; final String appName;
@@ -626,20 +705,48 @@ class AppShell extends StatefulWidget{
 }
 class _S extends State<AppShell>{
   int idx=0; late final ApiService api;
-  @override void initState(){ super.initState(); api=ApiService(widget.primary, widget.fallback); }
+  bool _dark=false; bool _highContrast=false;
+
+  @override void initState(){
+    super.initState();
+    api=ApiService(widget.primary, widget.fallback);
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final dark = await Store.getBool('theme_dark');
+    final hc = await Store.getBool('theme_high_contrast');
+    if(!mounted) return;
+    setState((){ _dark=dark; _highContrast=hc; });
+  }
+
   @override Widget build(BuildContext context){
-    final pages=[ FeedScreen(api: api), const ExploreScreen(), const AlertsScreen(), ProfileScreen(primary: widget.primary, fallback: widget.fallback) ];
-    final theme=ThemeData(useMaterial3:true, colorSchemeSeed: Colors.indigo, textTheme: GoogleFonts.interTextTheme(Theme.of(context).textTheme));
-    return MaterialApp(title: widget.appName, theme: theme, home:Scaffold(
-      appBar: AppBar(title: Text(widget.appName)),
-      body: pages[idx],
-      bottomNavigationBar: NavigationBar(selectedIndex: idx, onDestinationSelected:(i)=>setState(() => idx=i), destinations: const [
-        NavigationDestination(icon: Icon(Icons.article_outlined), selectedIcon: Icon(Icons.article), label:'Feed'),
-        NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune), label:'Explore'),
-        NavigationDestination(icon: Icon(Icons.alarm_outlined), selectedIcon: Icon(Icons.alarm), label:'Alerts'),
-        NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label:'Profile'),
-      ]),
-    ));
+    final pages=[
+      FeedScreen(api: api),
+      const ExploreScreen(),
+      const AlertsScreen(),
+      ProfileScreen(primary: widget.primary, fallback: widget.fallback, onPrefsChanged: _loadPrefs),
+    ];
+
+    final themeLight = _buildTheme(isDark: false, highContrast: _highContrast);
+    final themeDark  = _buildTheme(isDark: true, highContrast: _highContrast);
+
+    return MaterialApp(
+      title: widget.appName,
+      theme: themeLight,
+      darkTheme: themeDark,
+      themeMode: _dark ? ThemeMode.dark : ThemeMode.system,
+      home:Scaffold(
+        appBar: AppBar(title: Text(widget.appName)),
+        body: pages[idx],
+        bottomNavigationBar: NavigationBar(selectedIndex: idx, onDestinationSelected:(i)=>setState(() => idx=i), destinations: const [
+          NavigationDestination(icon: Icon(Icons.article_outlined), selectedIcon: Icon(Icons.article), label:'Feed'),
+          NavigationDestination(icon: Icon(Icons.tune_outlined), selectedIcon: Icon(Icons.tune), label:'Explore'),
+          NavigationDestination(icon: Icon(Icons.alarm_outlined), selectedIcon: Icon(Icons.alarm), label:'Alerts'),
+          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label:'Profile'),
+        ]),
+      ),
+    );
   }
 }
 DART
